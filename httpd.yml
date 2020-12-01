@@ -1,0 +1,81 @@
+
+- hosts: all
+  vars_prompt:
+          - name: "dvd_dir"
+            prompt: "enter dvd mount point: "
+            private: no
+          - name: "doc_root"
+            prompt: "enter document root name: "
+            private: no
+          - name: "http_port"
+            prompt: "enter port no: "
+            private: no
+ 
+  tasks:
+  - name: Creating a file/mount point for cdrom...
+    file:
+         state: directory
+         path: "{{ dvd_dir }}"
+  - name: Mounting...
+    mount:
+          src: "/dev/cdrom"
+          path: "{{ dvd_dir }}"
+          state: mounted
+          fstype: "iso9660"
+  - name: yum repo for mydvd1...
+    yum_repository:
+            baseurl: "{{ dvd_dir}}/AppStream"
+            name: "mydvd1"
+            description: "yum for my dvd1"
+            gpgcheck: no
+  - name: yum repo for mydvd1...
+    yum_repository:
+            baseurl: "{{ dvd_dir }}/BaseOS"
+            name: "mydvd2"
+            description: "yum for my dvd2"
+            gpgcheck: no
+
+  - name: installing httpd package...
+    package:
+            name: "httpd"
+            state: present
+    register: x
+
+  - name: creating dir for webserver...
+    file:
+            name: "{{ doc_root }}"
+            state: directory
+
+  - name: "copying the configuration..."
+    template:
+            dest: "/etc/httpd/conf.d/web.conf"
+            src: "web.conf"
+    when: x.rc == 0
+    notify:
+
+            - Start Service
+
+  - name: copying html code to doc root...
+    copy:
+            dest: "{{ doc_root }}/index.html"
+            content: "Idepotency retained and task completed!\n"
+          
+  - name: Starting httpd services...
+    service:
+            name: "httpd"
+            state: started
+            enabled: yes
+ 
+  - firewalld:
+          port: "{{ http_port }}/tcp"
+          state: enabled
+          permanent: yes
+          immediate: yes        
+
+  handlers:
+  - name: Start Service
+    service:
+            name: "httpd"
+            state: restarted
+
+
